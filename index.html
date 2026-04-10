@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Smart Budget Planner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;700;800&family=Space+Mono:wght@400;700&display=swap"
+        rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --green: #1D9E75;
+            --green-dark: #0F6E56;
+            --green-glow: rgba(29, 158, 117, 0.35);
+            --green-soft: rgba(29, 158, 117, 0.12);
+            --green-text: #5DCAA5;
+            --red-soft: rgba(226, 75, 74, 0.15);
+            --red-text: #f09595;
+            --glass-bg: rgba(255, 255, 255, 0.07);
+            --glass-border: rgba(255, 255, 255, 0.15);
+            --glass-hover: rgba(255, 255, 255, 0.12);
+            --radius-sm: 10px;
+            --radius-md: 16px;
+            --radius-lg: 22px;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Syne', sans-serif;
+            min-height: 100vh;
+            background: #051510;
+            color: #e8f5ef;
+            overflow-x: hidden;
+            padding-bottom: max(env(safe-area-inset-bottom, 0px), 32px);
+        }
+
+        /* ── Animated background ── */
+        .bg {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+        }
+
+        .orb-1 {
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(29, 158, 117, 0.30) 0%, transparent 65%);
+            top: -180px;
+            left: -180px;
+            animation: drift1 16s ease-in-out infinite alternate;
+        }
+
+        .orb-2 {
+            width: 450px;
+            height: 450px;
+            background: radial-gradient(circle, rgba(15, 110, 86, 0.20) 0%, transparent 65%);
+            bottom: -120px;
+            right: -120px;
+            animation: drift2 20s ease-in-out infinite alternate;
+        }
+
+        .orb-3 {
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(93, 202, 165, 0.10) 0%, transparent 70%);
+            top: 45%;
+            left: 30%;
+            animation: drift3 24s ease-in-out infinite alternate;
+        }
+
+        @keyframes drift1 {
+            to {
+                transform: translate(70px, 90px) scale(1.12);
+            }
+        }
+
+        @keyframes drift2 {
+            to {
+                transform: translate(-55px, -65px) scale(1.08);
+            }
+        }
+
+        @keyframes drift3 {
+            to {
+                transform: translate(40px, -40px) scale(1.15);
+            }
+        }
+
+        /* ── App ── */
+        .app {
+            position: relative;
+            z-index: 1;
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 0 16px 48px;
+        }
+
+        /* ── Header ── */
+        .header {
+            padding: 60px 0 32px;
+            text-align: center;
+        }
+
+        .header-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border-radius: 24px;
+            padding: 6px 16px;
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 2.5px;
+            color: var(--green-text);
+            text-transform: uppercase;
+            margin-bottom: 18px;
+        }
+
+        .pill-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--green);
+            box-shadow: 0 0 10px var(--green-glow);
+            animation: blink 2s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.35;
+            }
+        }
+
+        .header h1 {
+            font-size: clamp(28px, 8vw, 38px);
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: -0.8px;
+        }
+
+        .header h1 em {
+            font-style: normal;
+            color: var(--green-text);
+        }
+
+        .header p {
+            font-size: 13px;
+            color: rgba(232, 245, 239, 0.45);
+            margin-top: 10px;
+            line-height: 1.65;
+        }
+
+        /* ── Glass card ── */
+        .glass {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(22px);
+            -webkit-backdrop-filter: blur(22px);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            margin-bottom: 14px;
+        }
+
+        .section-label {
+            font-family: 'Space Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 2.5px;
+            color: rgba(232, 245, 239, 0.35);
+            text-transform: uppercase;
+            margin-bottom: 14px;
+        }
+
+        /* ── Inputs ── */
+        .input-row {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .input-group {
+            flex: 1;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 11px;
+            color: rgba(232, 245, 239, 0.45);
+            margin-bottom: 7px;
+            font-family: 'Space Mono', monospace;
+            letter-spacing: 0.5px;
+        }
+
+        .currency-wrap {
+            position: relative;
+        }
+
+        .currency-symbol {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 14px;
+            color: var(--green-text);
+            font-family: 'Space Mono', monospace;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        input[type="number"],
+        select {
+            width: 100%;
+            height: 46px;
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            background: rgba(255, 255, 255, 0.05);
+            color: #e8f5ef;
+            font-size: 15px;
+            padding: 0 12px;
+            font-family: 'Syne', sans-serif;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        input[type="number"] {
+            padding-left: 30px;
+        }
+
+        input[type="number"]:focus,
+        select:focus {
+            border-color: var(--green);
+            box-shadow: 0 0 0 3px var(--green-soft), 0 0 22px var(--green-glow);
+        }
+
+        select option {
+            background: #0a2217;
+            color: #e8f5ef;
+        }
+
+        .calc-btn {
+            height: 46px;
+            padding: 0 22px;
+            background: linear-gradient(135deg, var(--green), var(--green-dark));
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 15px;
+            font-weight: 700;
+            font-family: 'Syne', sans-serif;
+            cursor: pointer;
+            white-space: nowrap;
+            box-shadow: 0 4px 22px var(--green-glow);
+            transition: transform 0.15s, box-shadow 0.2s;
+            letter-spacing: 0.3px;
+            flex-shrink: 0;
+        }
+
+        .calc-btn:active {
+            transform: scale(0.95);
+        }
+
+        .calc-btn:hover {
+            box-shadow: 0 6px 30px rgba(29, 158, 117, 0.6);
+        }
+
+        /* ── Summary ── */
+        .summary-strip {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .stat-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(22px);
+            -webkit-backdrop-filter: blur(22px);
+            border-radius: var(--radius-md);
+            padding: 16px;
+        }
+
+        .stat-lbl {
+            font-size: 10px;
+            color: rgba(232, 245, 239, 0.38);
+            font-family: 'Space Mono', monospace;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        .stat-val {
+            font-family: 'Space Mono', monospace;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .stat-val.green {
+            color: var(--green-text);
+        }
+
+        .stat-val.red {
+            color: var(--red-text);
+        }
+
+        .pct-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-family: 'Space Mono', monospace;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 20px;
+            margin-top: 6px;
+        }
+
+        .pct-ok {
+            background: rgba(29, 158, 117, 0.18);
+            color: var(--green-text);
+            border: 1px solid rgba(29, 158, 117, 0.3);
+        }
+
+        .pct-over {
+            background: var(--red-soft);
+            color: var(--red-text);
+            border: 1px solid rgba(226, 75, 74, 0.3);
+        }
+
+        /* ── Sliders header ── */
+        .sliders-hdr {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .sliders-hdr .section-label {
+            margin-bottom: 0;
+        }
+
+        /* ── Category card ── */
+        .cat-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border-radius: var(--radius-md);
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .cat-card:hover {
+            background: var(--glass-hover);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .cat-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .cat-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #e8f5ef;
+        }
+
+        .cat-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .cat-right {
+            text-align: right;
+        }
+
+        .cat-amt {
+            font-family: 'Space Mono', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            color: #e8f5ef;
+            line-height: 1;
+        }
+
+        .cat-pct {
+            font-family: 'Space Mono', monospace;
+            font-size: 11px;
+            color: rgba(232, 245, 239, 0.38);
+            margin-top: 3px;
+        }
+
+        /* Custom range */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 5px;
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+            border: none;
+            padding: 0;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4), 0 0 0 3px var(--green-soft);
+            cursor: pointer;
+            transition: box-shadow 0.15s, transform 0.15s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:active {
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4), 0 0 0 6px var(--green-soft);
+            transform: scale(1.2);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #fff;
+            border: none;
+            cursor: pointer;
+        }
+
+        /* ── Chart ── */
+        .donut-wrap {
+            position: relative;
+            width: 190px;
+            height: 190px;
+            margin: 0 auto 18px;
+        }
+
+        .donut-center {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+
+        .donut-c-lbl {
+            font-size: 9px;
+            color: rgba(232, 245, 239, 0.38);
+            font-family: 'Space Mono', monospace;
+            letter-spacing: 1.5px;
+        }
+
+        .donut-c-val {
+            font-family: 'Space Mono', monospace;
+            font-size: 16px;
+            font-weight: 700;
+            color: #e8f5ef;
+            margin-top: 3px;
+        }
+
+        #legendGrid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 14px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 11px;
+            color: rgba(232, 245, 239, 0.55);
+        }
+
+        .legend-box {
+            width: 9px;
+            height: 9px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+
+        .legend-pct {
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            color: rgba(232, 245, 239, 0.35);
+            margin-left: auto;
+        }
+
+        /* ── Stocks ── */
+        .stock-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .stock-card:hover {
+            background: var(--glass-hover);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .stock-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .stock-ticker {
+            font-family: 'Space Mono', monospace;
+            font-size: 14px;
+            font-weight: 700;
+            color: #e8f5ef;
+        }
+
+        .stock-name {
+            font-size: 11px;
+            color: rgba(232, 245, 239, 0.45);
+            margin-top: 2px;
+        }
+
+        .stock-tag {
+            display: inline-block;
+            font-size: 9px;
+            font-family: 'Space Mono', monospace;
+            padding: 3px 9px;
+            border-radius: 6px;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .tag-etf {
+            background: rgba(127, 119, 221, 0.18);
+            color: #AFA9EC;
+            border: 1px solid rgba(127, 119, 221, 0.28);
+        }
+
+        .tag-value {
+            background: rgba(55, 138, 221, 0.18);
+            color: #85B7EB;
+            border: 1px solid rgba(55, 138, 221, 0.28);
+        }
+
+        .tag-growth {
+            background: rgba(29, 158, 117, 0.18);
+            color: var(--green-text);
+            border: 1px solid rgba(29, 158, 117, 0.28);
+        }
+
+        .tag-div {
+            background: rgba(186, 117, 23, 0.18);
+            color: #FAC775;
+            border: 1px solid rgba(186, 117, 23, 0.28);
+        }
+
+        .tag-hedge {
+            background: rgba(186, 117, 23, 0.18);
+            color: #FAC775;
+            border: 1px solid rgba(186, 117, 23, 0.28);
+        }
+
+        .stock-why {
+            font-size: 11px;
+            color: rgba(232, 245, 239, 0.45);
+            line-height: 1.65;
+        }
+
+        .stock-risk {
+            font-size: 10px;
+            font-family: 'Space Mono', monospace;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .rdot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .risk-low {
+            color: var(--green-text);
+        }
+
+        .risk-low .rdot {
+            background: var(--green);
+        }
+
+        .risk-med {
+            color: #FAC775;
+        }
+
+        .risk-med .rdot {
+            background: #EF9F27;
+        }
+
+        .risk-high {
+            color: var(--red-text);
+        }
+
+        .risk-high .rdot {
+            background: #E24B4A;
+        }
+
+        .disclaimer {
+            font-size: 10px;
+            color: rgba(232, 245, 239, 0.25);
+            margin-top: 16px;
+            line-height: 1.75;
+            font-family: 'Space Mono', monospace;
+            border-top: 1px solid var(--glass-border);
+            padding-top: 14px;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 36px;
+            font-size: 10px;
+            color: rgba(232, 245, 239, 0.18);
+            font-family: 'Space Mono', monospace;
+            letter-spacing: 1.5px;
+        }
+
+        /* ── Fade-in ── */
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(14px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fadein {
+            animation: fadeUp 0.45s ease both;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Mesh background -->
+    <div class="bg">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <div class="app">
+
+        <!-- Header -->
+        <header class="header fadein">
+            <div class="header-pill"><span class="pill-dot"></span>Budget Planner</div>
+            <h1>Pocket<br><em>Watch</em></h1>
+            <p>Enter your income, adjust sliders,<br>and see your money visualised instantly.</p>
+        </header>
+
+        <!-- Income input -->
+        <div class="glass fadein" style="animation-delay:0.08s">
+            <div class="section-label">Your income</div>
+            <div class="input-row">
+                <div class="input-group">
+                    <label>Monthly salary</label>
+                    <div class="currency-wrap">
+                        <span class="currency-symbol" id="symDisplay">₹</span>
+                        <input type="number" id="salaryInput" placeholder="50000" value="50000" min="0" step="500" />
+                    </div>
+                </div>
+                <div class="input-group" style="max-width:96px;">
+                    <label>Currency</label>
+                    <select id="currencySelect" onchange="updateAll()">
+                        <option value="₹">₹ INR</option>
+                        <option value="$">$ USD</option>
+                        <option value="€">€ EUR</option>
+                        <option value="£">£ GBP</option>
+                    </select>
+                </div>
+                <button class="calc-btn" onclick="calculate()">Go</button>
+            </div>
+        </div>
+
+        <!-- Summary strip -->
+        <div class="summary-strip fadein" style="animation-delay:0.14s">
+            <div class="stat-card">
+                <div class="stat-lbl">Total income</div>
+                <div class="stat-val green" id="totalIncome">₹50,000</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-lbl">Remaining</div>
+                <div class="stat-val green" id="savingsAmt">+₹0</div>
+                <span class="pct-badge pct-ok" id="totalBadge">100%</span>
+            </div>
+        </div>
+
+        <!-- Sliders -->
+        <div class="sliders-hdr fadein" style="animation-delay:0.18s">
+            <p class="section-label" style="margin-bottom:0;">Allocations</p>
+        </div>
+
+        <div id="catList"></div>
+
+        <!-- Chart -->
+        <div class="glass fadein" style="animation-delay:0.22s; margin-top:4px;">
+            <div class="section-label">Spending breakdown</div>
+            <div class="donut-wrap">
+                <canvas id="donutChart" role="img"
+                    aria-label="Donut chart showing budget allocation across categories"></canvas>
+                <div class="donut-center">
+                    <span class="donut-c-lbl">TOTAL</span>
+                    <span class="donut-c-val" id="centerVal">₹50,000</span>
+                </div>
+            </div>
+            <div id="legendGrid"></div>
+        </div>
+
+        <!-- Stocks -->
+        <p class="section-label fadein" style="margin: 22px 0 10px; padding-left:2px; animation-delay:0.25s;">Smart
+            investment picks</p>
+        <div id="stocksList"></div>
+
+        <p class="disclaimer">* General educational suggestions only — not personalised financial advice. Always consult
+            a certified financial advisor before investing. Past performance does not guarantee future returns.</p>
+
+        <footer>Smart Budget Planner &mdash; 2025</footer>
+    </div>
+
+    <script>
+        const categories = [
+            { key: 'rent', label: 'Rent / Housing', icon: '🏠', pct: 30, color: '#1D9E75' },
+            { key: 'food', label: 'Food & Groceries', icon: '🍱', pct: 20, color: '#378ADD' },
+            { key: 'transport', label: 'Transport', icon: '🚌', pct: 10, color: '#BA7517' },
+            { key: 'clothes', label: 'Clothes & Accessories', icon: '👗', pct: 8, color: '#D4537E' },
+            { key: 'health', label: 'Health & Wellness', icon: '💊', pct: 7, color: '#7F77DD' },
+            { key: 'entertain', label: 'Entertainment', icon: '🎬', pct: 5, color: '#E24B4A' },
+            { key: 'savings', label: 'Savings / Invest', icon: '📈', pct: 15, color: '#5DCAA5' },
+            { key: 'misc', label: 'Miscellaneous', icon: '📦', pct: 5, color: '#888780' },
+        ];
+
+        const stocks = [
+            { ticker: 'NIFTYBEES', name: 'Nippon Nifty ETF', tag: 'etf', tagLabel: 'ETF', riskClass: 'risk-low', risk: 'Low', why: 'Tracks Nifty 50; ideal for passive diversified exposure to top Indian companies.' },
+            { ticker: 'HDFC Bank', name: 'HDFC Bank Ltd', tag: 'value', tagLabel: 'Value', riskClass: 'risk-med', risk: 'Low-Med', why: "India's largest private bank with consistent performance and dividend history." },
+            { ticker: 'Infosys', name: 'Infosys Ltd', tag: 'growth', tagLabel: 'Growth', riskClass: 'risk-med', risk: 'Medium', why: 'Top IT exporter benefiting from global digital transformation spend.' },
+            { ticker: 'Reliance', name: 'Reliance Industries', tag: 'growth', tagLabel: 'Growth', riskClass: 'risk-med', risk: 'Medium', why: 'Diversified giant spanning energy, retail, and telecom sectors.' },
+            { ticker: 'GOLDBEES', name: 'Nippon Gold ETF', tag: 'hedge', tagLabel: 'Hedge', riskClass: 'risk-low', risk: 'Low', why: 'Hedges against inflation and INR currency volatility effectively.' },
+            { ticker: 'TCS', name: 'Tata Consultancy Svcs', tag: 'div', tagLabel: 'Dividend', riskClass: 'risk-med', risk: 'Low-Med', why: 'Stable IT giant with strong dividend history and global client base.' },
+        ];
+
+        let chart = null;
+
+        function getCurrency() { return document.getElementById('currencySelect').value; }
+
+        function fmt(n, cur) { return cur + Math.round(n).toLocaleString('en-IN'); }
+
+        function buildCatList() {
+            document.getElementById('catList').innerHTML = categories.map((c, idx) => `
+      <div class="cat-card fadein" style="animation-delay:${0.20 + idx * 0.04}s">
+        <div class="cat-top">
+          <div class="cat-name">
+            <div class="cat-icon" style="background:${c.color}1a; border:1px solid ${c.color}40;">${c.icon}</div>
+            ${c.label}
+          </div>
+          <div class="cat-right">
+            <div class="cat-amt" id="amt-${c.key}">—</div>
+            <div class="cat-pct" id="pctlbl-${c.key}">${c.pct}%</div>
+          </div>
+        </div>
+        <input type="range" id="sl-${c.key}" min="0" max="60" step="1" value="${c.pct}"
+          style="accent-color:${c.color};"
+          oninput="onSlider('${c.key}', this.value)" />
+      </div>
+    `).join('');
+        }
+
+        function buildStocks() {
+            document.getElementById('stocksList').innerHTML = stocks.map((s, idx) => `
+      <div class="stock-card fadein" style="animation-delay:${0.28 + idx * 0.05}s">
+        <div class="stock-top">
+          <div>
+            <div class="stock-ticker">${s.ticker}</div>
+            <div class="stock-name">${s.name}</div>
+          </div>
+          <span class="stock-tag tag-${s.tag}">${s.tagLabel}</span>
+        </div>
+        <div class="stock-why">${s.why}</div>
+        <div class="stock-risk ${s.riskClass}"><span class="rdot"></span>Risk: ${s.risk}</div>
+      </div>
+    `).join('');
+        }
+
+        function onSlider(key, val) {
+            document.getElementById('pctlbl-' + key).textContent = val + '%';
+            updateAll();
+        }
+
+        function getVals() {
+            return categories.map(c => parseInt(document.getElementById('sl-' + c.key)?.value ?? c.pct));
+        }
+
+        function updateAll() {
+            const salary = parseFloat(document.getElementById('salaryInput').value) || 0;
+            const cur = getCurrency();
+            document.getElementById('symDisplay').textContent = cur;
+            document.getElementById('totalIncome').textContent = fmt(salary, cur);
+            document.getElementById('centerVal').textContent = fmt(salary, cur);
+
+            const vals = getVals();
+            const total = vals.reduce((a, b) => a + b, 0);
+
+            const badge = document.getElementById('totalBadge');
+            badge.textContent = total + '%';
+            badge.className = 'pct-badge ' + (total > 100 ? 'pct-over' : 'pct-ok');
+
+            categories.forEach((c, i) => {
+                document.getElementById('amt-' + c.key).textContent = fmt(salary * vals[i] / 100, cur);
+                document.getElementById('pctlbl-' + c.key).textContent = vals[i] + '%';
+            });
+
+            const rem = salary - salary * total / 100;
+            const savEl = document.getElementById('savingsAmt');
+            savEl.textContent = (rem >= 0 ? '+' : '-') + fmt(Math.abs(rem), cur);
+            savEl.className = 'stat-val ' + (rem >= 0 ? 'green' : 'red');
+
+            drawChart(salary, vals, cur);
+        }
+
+        function calculate() { updateAll(); }
+
+        function drawChart(salary, vals, cur) {
+            const ctx = document.getElementById('donutChart').getContext('2d');
+            const data = vals.map((v, i) => salary * v / 100);
+
+            if (chart) chart.destroy();
+            chart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: categories.map(c => c.label),
+                    datasets: [{
+                        data,
+                        backgroundColor: categories.map(c => c.color + 'bb'),
+                        borderColor: categories.map(c => c.color),
+                        borderWidth: 1.5,
+                        hoverBorderWidth: 3,
+                        hoverBorderColor: '#fff',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    cutout: '68%',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(5,21,16,0.92)',
+                            borderColor: 'rgba(255,255,255,0.15)',
+                            borderWidth: 1,
+                            titleColor: '#e8f5ef',
+                            bodyColor: 'rgba(232,245,239,0.65)',
+                            padding: 10,
+                            callbacks: {
+                                label: ctx => ' ' + fmt(ctx.parsed, cur) + ' (' + vals[ctx.dataIndex] + '%)'
+                            }
+                        }
+                    }
+                }
+            });
+
+            document.getElementById('legendGrid').innerHTML = categories.map((c, i) => `
+      <div class="legend-item">
+        <div class="legend-box" style="background:${c.color};"></div>
+        <span>${c.label.split('/')[0].trim()}</span>
+        <span class="legend-pct">${vals[i]}%</span>
+      </div>
+    `).join('');
+        }
+
+        buildCatList();
+        buildStocks();
+        updateAll();
+    </script>
+</body>
+
+</html>
